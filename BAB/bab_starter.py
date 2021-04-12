@@ -61,7 +61,6 @@ class BBTreeNode():
         n2.prob.add_constraint( branch_var >= math.ceil(branch_var.value) ) # add in the new binary constraint
         return n2
 
-
     def bbsolve(self):
         '''
         Use the branch and bound method to solve an integer program
@@ -80,7 +79,43 @@ class BBTreeNode():
         bestnode_vars = root.vars # initialize bestnode_vars to the root vars
 
         #TODO: fill this part in
-
-        
+        bestres, bestnode_vars = recursion(self, bestres, bestnode_vars)
         return bestres, bestnode_vars
+
+    
+    def getNonInt(self):
+        for v in self.vars:
+            if abs(float(v.value) - round(v.value)) > 1e-2:
+                return v
+        return None
  
+def recursion(obj, bestres, bestnode_vars):
+    try:
+        # see if solution
+        soln = obj.prob.solve(solver='cvxopt')
+
+    except pic.modeling.problem.SolutionFailure:
+        # nope
+        return 0, bestnode_vars
+
+    if obj.is_integral(): 
+        # If solution is all in ints, correct
+        return round(soln.value), [round(i) for i in obj.vars]
+
+    if soln.value > bestres: 
+        # Get upper and lower branch
+        branch_var = obj.getNonInt()
+        lower_res, lower_node_vars = recursion(obj.branch_floor(branch_var), bestres, bestnode_vars)
+        upper_res, upper_node_vars = recursion(obj.branch_ceil(branch_var), bestres, bestnode_vars)
+
+        # update best solution if necessary
+        if upper_res > bestres:
+            bestres = upper_res
+            bestnode_vars = upper_node_vars
+
+        if lower_res > bestres:
+            bestres = lower_res
+            bestnode_vars = lower_node_vars
+
+    return bestres, bestnode_vars
+
